@@ -1,0 +1,52 @@
+{
+  "name": "iiq-xml-concat-extension",
+  "displayName": "IIQ Concat For Extension",
+  "description": "Combine multiple SailPoint IdentityIQ XML files into a single <sailpoint> import file.",
+  "version": "0.0.1",
+  "publisher": "emilvidmark",
+  "author": "Emil Vidmark",
+  "license": "MIT",
+  "keywords": [
+    "sailpoint",
+    "identityiq",
+    "xml",
+    "rules",
+    "beanshell"
+  ],
+  "engines": {
+    "vscode": "^1.99.3"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "iiqXmlConcat.combineSelectedXml",
+        "title": "IIQ: Concat Selected XML Files For Import"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "iiqXmlConcat.combineSelectedXml",
+          "when": "resourceExtname == .xml",
+          "group": "navigation@20"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "check": "node --check extension.js",
+    "package": "vsce package --allow-missing-repository",
+    "package:pre": "npm run check",
+    "version:patch": "npm version patch -m \"chore(release): %s\"",
+    "version:minor": "npm version minor -m \"chore(release): %s\"",
+    "version:major": "npm version major -m \"chore(release): %s\""
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.99.0",
+    "@vscode/vsce": "^3.2.2"
+  }
+}
