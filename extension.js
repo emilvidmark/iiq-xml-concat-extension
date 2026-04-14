@@ -178,7 +178,7 @@ function buildMergedDocument(fragments) {
     '<!DOCTYPE sailpoint PUBLIC "sailpoint.dtd" "sailpoint.dtd">',
     '<sailpoint>',
     body,
-    '<sailpoint>',
+    '</sailpoint>',
     ''
   ].join('\n');
 }
