@@ -1,4 +1,4 @@
-# IIQ XML Concat Extensions
+# IIQ XML Concat Extension
 
 This VS Code extension adds a command that combines multiple SailPoint IdentityIQ XML files into one import-ready file wrapped in a single `<sailpoint>` root.
 
