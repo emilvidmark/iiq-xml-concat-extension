@@ -4,8 +4,10 @@ This VS Code extension adds a command that combines multiple SailPoint IdentityI
 
 ## How to use
 
-1. In Explorer, multi-select `.xml` files and right-click.
-2. Run **IIQ: Combine XML Files Into SailPoint Import**.
+1. Multi-select `.xml` files using either of these views:
+  - Explorer
+  - Open Editors / selected editor tabs
+2. Right-click and run **IIQ: Concat Selected XML Files For Import**.
 3. The merged output opens in a new untitled XML tab.
 4. Save XML on computer and import to SailPoint IdentityIQ
 

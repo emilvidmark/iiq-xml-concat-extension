@@ -31,8 +31,22 @@
       "explorer/context": [
         {
           "command": "iiqXmlConcat.combineSelectedXml",
-          "when": "resourceExtname == .xml",
+          "when": "resourceScheme == file && resourceExtname == .xml",
           "group": "navigation@20"
+        }
+      ],
+      "openEditors/context": [
+        {
+          "command": "iiqXmlConcat.combineSelectedXml",
+          "when": "resourceScheme == file && resourceExtname == .xml",
+          "group": "navigation@20"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "iiqXmlConcat.combineSelectedXml",
+          "when": "resourceScheme == file && resourceExtname == .xml",
+          "group": "3_preview@20"
         }
       ]
     }

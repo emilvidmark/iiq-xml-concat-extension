@@ -8,8 +8,9 @@ const path = require('path');
 function activate(context) {
   const disposable = vscode.commands.registerCommand(
     'iiqXmlConcat.combineSelectedXml',
-    async (resourceUri, allSelectedResources) => {
+    async (...args) => {
       try {
+        const { resourceUri, allSelectedResources } = normalizeCommandArgs(args);
         const selectedUris = await resolveXmlFileSelection(resourceUri, allSelectedResources);
         await combineUris(selectedUris);
       } catch (error) {
@@ -25,6 +26,69 @@ function activate(context) {
 function deactivate() {}
 
 /**
+ * Normalize command arguments from Explorer/Open Editors/Tab context menus.
+ * @param {unknown[]} args
+ */
+function normalizeCommandArgs(args) {
+  const [first, second] = Array.isArray(args) ? args : [];
+  const firstAsUri = asFileUri(first);
+  const secondAsUriList = asFileUriList(second);
+
+  if (firstAsUri || secondAsUriList.length > 0) {
+    return {
+      resourceUri: firstAsUri,
+      allSelectedResources: secondAsUriList
+    };
+  }
+
+  if (isObject(first)) {
+    const resourceUri = asFileUri(first.resourceUri);
+    const allSelectedResources = asFileUriList(first.allSelectedResources);
+    return { resourceUri, allSelectedResources };
+  }
+
+  return {
+    resourceUri: undefined,
+    allSelectedResources: []
+  };
+}
+
+/**
+ * @param {unknown} value
+ */
+function asFileUri(value) {
+  if (!value || !isObject(value)) {
+    return undefined;
+  }
+
+  if (typeof value.scheme === 'string' && typeof value.fsPath === 'string') {
+    return value;
+  }
+
+  return undefined;
+}
+
+/**
+ * @param {unknown} value
+ */
+function asFileUriList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => asFileUri(item))
+    .filter((item) => Boolean(item));
+}
+
+/**
+ * @param {unknown} value
+ */
+function isObject(value) {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
  * Resolve XML file selection from Explorer multi-select or file picker.
  * @param {vscode.Uri | undefined} resourceUri
  * @param {vscode.Uri[] | undefined} allSelectedResources
@@ -37,8 +101,27 @@ async function resolveXmlFileSelection(resourceUri, allSelectedResources) {
     return normalized;
   }
 
+  const selectedTabUris = getSelectedTabFileUris().filter((uri) => uri.fsPath.toLowerCase().endsWith('.xml'));
+  if (selectedTabUris.length > 1) {
+    return selectedTabUris;
+  }
+
   if (resourceUri && resourceUri.scheme === 'file') {
+    if (resourceUri.fsPath.toLowerCase().endsWith('.xml')) {
+      const openXmlTabs = getOpenXmlTabUris();
+      if (openXmlTabs.length > 1) {
+        const picked = await pickUrisFromOpenTabs(openXmlTabs, resourceUri);
+        if (picked.length > 0) {
+          return picked;
+        }
+      }
+    }
+
     return [resourceUri];
+  }
+
+  if (selectedTabUris.length === 1) {
+    return selectedTabUris;
   }
 
   const pickerUris = await vscode.window.showOpenDialog({
@@ -51,6 +134,109 @@ async function resolveXmlFileSelection(resourceUri, allSelectedResources) {
   });
 
   return pickerUris ?? [];
+}
+
+/**
+ * Get all open XML file tabs across tab groups.
+ * @returns {vscode.Uri[]}
+ */
+function getOpenXmlTabUris() {
+  const groups = vscode.window.tabGroups?.all ?? [];
+  const seen = new Set();
+  const uris = [];
+
+  for (const group of groups) {
+    for (const tab of group.tabs ?? []) {
+      const uri = asFileUriFromTabInput(tab?.input);
+      if (!uri || uri.scheme !== 'file' || !uri.fsPath.toLowerCase().endsWith('.xml')) {
+        continue;
+      }
+
+      if (!seen.has(uri.fsPath)) {
+        seen.add(uri.fsPath);
+        uris.push(uri);
+      }
+    }
+  }
+
+  return uris;
+}
+
+/**
+ * Offer a fallback picker for open XML tabs when multi-select context is unavailable.
+ * @param {vscode.Uri[]} openXmlUris
+ * @param {vscode.Uri} preferredUri
+ * @returns {Promise<vscode.Uri[]>}
+ */
+async function pickUrisFromOpenTabs(openXmlUris, preferredUri) {
+  const items = openXmlUris.map((uri) => ({
+    label: path.basename(uri.fsPath),
+    description: path.dirname(uri.fsPath),
+    uri,
+    picked: uri.fsPath === preferredUri.fsPath
+  }));
+
+  const selectedItems = await vscode.window.showQuickPick(items, {
+    title: 'Select XML Tabs to Combine',
+    canPickMany: true,
+    matchOnDescription: true,
+    placeHolder: 'VS Code only passed one tab. Pick all XML tabs you want to merge.'
+  });
+
+  if (!selectedItems || selectedItems.length === 0) {
+    return [];
+  }
+
+  return selectedItems.map((item) => item.uri);
+}
+
+/**
+ * Read selected tabs from the active tab group and map each tab to a file URI when possible.
+ * @returns {vscode.Uri[]}
+ */
+function getSelectedTabFileUris() {
+  const activeGroup = vscode.window.tabGroups?.activeTabGroup;
+  if (!activeGroup || !Array.isArray(activeGroup.selectedTabs) || activeGroup.selectedTabs.length === 0) {
+    return [];
+  }
+
+  const seen = new Set();
+  const uris = [];
+
+  for (const tab of activeGroup.selectedTabs) {
+    const uri = asFileUriFromTabInput(tab?.input);
+    if (!uri || uri.scheme !== 'file') {
+      continue;
+    }
+
+    if (!seen.has(uri.fsPath)) {
+      seen.add(uri.fsPath);
+      uris.push(uri);
+    }
+  }
+
+  return uris;
+}
+
+/**
+ * Best-effort extraction of a URI from various tab input shapes.
+ * @param {unknown} tabInput
+ * @returns {vscode.Uri | undefined}
+ */
+function asFileUriFromTabInput(tabInput) {
+  if (!isObject(tabInput)) {
+    return undefined;
+  }
+
+  const candidates = [tabInput.uri, tabInput.resource, tabInput.modified, tabInput.original];
+  for (const candidate of candidates) {
+    const uri = asFileUri(candidate);
+    if (uri) {
+      return uri;
+    }
+  }
+
+  return undefined;
 }
 
 /**
@@ -102,17 +288,11 @@ async function combineUris(selectedUris) {
   }
 
   const mergedXml = buildMergedDocument(fragments);
-  const untitledUri = vscode.Uri.parse('untitled:merged-sailpoint-import.xml');
-  const doc = await vscode.workspace.openTextDocument(untitledUri);
-  const editor = await vscode.window.showTextDocument(doc, { preview: false });
-
-  await editor.edit((editBuilder) => {
-    const fullRange = new vscode.Range(
-      doc.positionAt(0),
-      doc.positionAt(doc.getText().length)
-    );
-    editBuilder.replace(fullRange, mergedXml);
+  const doc = await vscode.workspace.openTextDocument({
+    language: 'xml',
+    content: mergedXml
   });
+  await vscode.window.showTextDocument(doc, { preview: false });
 
   const summary = skipped.length > 0
     ? `Combined ${fragments.length} XML file(s) in a new tab. Skipped ${skipped.length} item(s).`
@@ -178,7 +358,7 @@ function buildMergedDocument(fragments) {
     '<!DOCTYPE sailpoint PUBLIC "sailpoint.dtd" "sailpoint.dtd">',
     '<sailpoint>',
     body,
-    '<sailpoint>',
+    '</sailpoint>',
     ''
   ].join('\n');
 }
